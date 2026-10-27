@@ -2,6 +2,7 @@ import os
 import psycopg2
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 CORS(app)
@@ -75,7 +76,6 @@ def get_products_api():
 # --- RUTA PRINCIPAL (ENTRADA DIRECTA AL LOGIN) ---
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    # Si el usuario intenta hacer login desde la página principal
     if request.method == 'POST':
         password = request.form.get('password')
         if password == ADMIN_PASSWORD:
@@ -84,11 +84,9 @@ def index():
         else:
             return render_template('login.html', error='Contraseña incorrecta')
 
-    # Si ya está logueado, lo mandamos al panel de administración directamente
     if session.get('logged_in'):
         return redirect(url_for('dashboard'))
     
-    # Si no hay sesión, muestra el login por defecto en http://127.0.0.1:5000/
     return render_template('login.html')
 
 # --- PANEL DE ADMINISTRACIÓN (PROTEGIDO) ---
@@ -106,7 +104,6 @@ def dashboard():
     
     return render_template('dashboard.html', productos=productos)
 
-# Ruta de compatibilidad por si tu HTML usa /admin
 @app.route('/admin')
 def admin_redirect():
     return redirect(url_for('index'))
@@ -129,8 +126,14 @@ def agregar_producto():
     if 'imagen_archivo' in request.files:
         file = request.files['imagen_archivo']
         if file and file.filename != '':
-            filename = file.filename
-            file.save(os.path.join('static/img', filename))
+            filename = secure_filename(file.filename)
+            
+            # Crear la carpeta static/img automáticamente si no existe en el servidor
+            upload_folder = os.path.join('static', 'img')
+            os.makedirs(upload_folder, exist_ok=True)
+            
+            filepath = os.path.join(upload_folder, filename)
+            file.save(filepath)
             imagen = filename
 
     conn = get_db_connection()
